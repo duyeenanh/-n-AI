@@ -242,28 +242,12 @@ function App() {
   const askAdvisor = async (question = message) => {
     if (!question.trim()) return;
     const prompt = question.trim();
-    setMessages((current) => [...current, { role: 'user', text: prompt }]);
+    const nextHistory = [...messages, { role: 'user', text: prompt }];
+    setMessages(nextHistory);
     setMessage('');
     setAiBusy(true);
-    const localResult = consultLocalAi(prompt, catalog);
-    try {
-      const result = await apiFetch('/ai/consult', {
-        method: 'POST',
-        body: JSON.stringify({ message: prompt, sessionId: aiSessionId || undefined }),
-      });
-      setAiSessionId(result.sessionId || '');
-      setMessages((current) => [...current, {
-        role: 'assistant',
-        text: result.answer,
-        products: result.products || [],
-        mode: result.mode,
-        method: result.method,
-        candidateCount: result.candidateCount,
-        budget: result.budget ?? localResult.budget,
-        queryTokens: localResult.queryTokens,
-        providerWarning: result.providerWarning,
-      }]);
-    } catch {
+    const localResult = consultLocalAi(prompt, catalog, messages);
+    const saveLocalAiLog = (res) => {
       const now = new Date().toISOString();
       const sessionKey = aiSessionId || 'local-session';
       const historyItems = readSaved('moc-local-ai-history', []);
@@ -273,8 +257,8 @@ function App() {
           role: 'assistant',
           customerName: user?.fullName || 'Khách ghé thăm',
           email: user?.email || '',
-          content: localResult.answer,
-          retrievedProducts: (localResult.products || []).map((p) => p.name),
+          content: res.answer,
+          retrievedProducts: (res.products || []).map((p) => p.name),
           createdAt: now,
         },
         {
@@ -287,12 +271,55 @@ function App() {
         },
       ];
       localStorage.setItem('moc-local-ai-history', JSON.stringify([...newEntries, ...historyItems].slice(0, 50)));
+    };
+
+    if (localResult.method === 'intent-classifier' || localResult.method === 'knowledge-base') {
+      saveLocalAiLog(localResult);
       setMessages((current) => [...current, {
         role: 'assistant',
         text: localResult.answer,
         products: localResult.products,
         mode: localResult.mode,
         method: localResult.method,
+        intent: localResult.intent,
+        matchedEntities: localResult.matchedEntities,
+        candidateCount: localResult.candidateCount,
+        budget: localResult.budget,
+        queryTokens: localResult.queryTokens,
+      }]);
+      setAiBusy(false);
+      return;
+    }
+
+    try {
+      const result = await apiFetch('/ai/consult', {
+        method: 'POST',
+        body: JSON.stringify({ message: prompt, sessionId: aiSessionId || undefined }),
+      });
+      setAiSessionId(result.sessionId || '');
+      setMessages((current) => [...current, {
+        role: 'assistant',
+        text: result.answer,
+        products: result.products || [],
+        mode: result.mode,
+        method: result.method,
+        intent: localResult.intent,
+        matchedEntities: localResult.matchedEntities,
+        candidateCount: result.candidateCount,
+        budget: result.budget ?? localResult.budget,
+        queryTokens: localResult.queryTokens,
+        providerWarning: result.providerWarning,
+      }]);
+    } catch {
+      saveLocalAiLog(localResult);
+      setMessages((current) => [...current, {
+        role: 'assistant',
+        text: localResult.answer,
+        products: localResult.products,
+        mode: localResult.mode,
+        method: localResult.method,
+        intent: localResult.intent,
+        matchedEntities: localResult.matchedEntities,
         candidateCount: localResult.candidateCount,
         budget: localResult.budget,
         queryTokens: localResult.queryTokens,
@@ -767,7 +794,7 @@ function App() {
 
       {compareOpen && <div className="compare-modal modal-card"><button className="modal-close" onClick={() => setCompareOpen(false)} aria-label="Đóng"><X /></button><div className="eyebrow centered"><span /> CÙNG CHỌN BÓ HOA ƯNG Ý <span /></div><h3>So sánh những bó hoa</h3><p className="compare-intro">Đặt cạnh nhau để tìm bó hoa phù hợp nhất nhé.</p>{compare.length < 2 && <div className="compare-hint">Chọn thêm ít nhất một sản phẩm nữa để so sánh.</div>}<div className="compare-table"><div className="compare-labels"><span>SẢN PHẨM</span><span>GIÁ BÁN</span><span>THÀNH PHẦN</span><span>DỊP TẶNG</span><span>TÌNH TRẠNG</span></div>{compare.map((item) => { const current = latestProduct(item); const soldOut = Number(current.stock) === 0; return <div className="compare-column" key={item.id}><img src={imageUrl(item.image, 260)} alt={item.name} /><b>{item.name}</b><strong>{formatPrice(item.price)}</strong><span>{item.detail}</span><span>{item.occasion}</span><span className={soldOut ? 'compare-stock-out' : 'in-stock'}>{soldOut ? 'Đã hết hàng' : <><Check size={14} /> Còn {current.stock ?? 'hàng'}</>}</span><button className="button-primary mini-button" disabled={soldOut} onClick={() => { if (addToCart(current)) { setCompareOpen(false); setCartOpen(true); } }}>{soldOut ? 'Đã hết hàng' : 'Chọn bó hoa'}</button></div>; })}</div></div>}
 
-      {aiOpen && <div className="ai-chat modal-card" role="dialog" aria-modal="true" aria-label="Mộc Miên AI" onKeyDown={(e) => { if (e.key === 'Escape') setAiOpen(false); }}><div className="chat-heading"><span className="chat-avatar"><Sparkles size={19} /></span><div><b>Mộc Miên AI · Local TF-IDF</b><small><span /> {aiBusy ? 'Đang tính TF-IDF & Cosine Similarity...' : 'Chạy nội bộ 100% · Không cần API ngoài'}</small></div><button className="icon-button" onClick={() => setAiOpen(false)} aria-label="Đóng tư vấn"><X /></button></div><div className="chat-messages"><div className="chat-welcome"><div className="chat-flower">✿</div><h3>Chào bạn, mình là Miên.</h3><p>Trợ lý chọn hoa sử dụng thuật toán <b>TF-IDF + Cosine Similarity</b> kết hợp lọc ràng buộc ngân sách & tồn kho (chạy hoàn toàn Local, không phụ thuộc API).</p><div className="suggestion-chips">{['Tặng mẹ, ngân sách 300k', 'Hoa sinh nhật cho bạn gái', 'Hoa vàng tặng tốt nghiệp', 'Hoa tulip trắng dưới 600k'].map((suggestion) => <button key={suggestion} disabled={aiBusy} onClick={() => askAdvisor(suggestion)}>{suggestion} <ArrowUpRight size={13} /></button>)}</div></div>{messages.map((item, index) => <div className={`chat-message ${item.role}`} key={`${item.role}-${index}`}><span>{item.text}</span>{item.role === 'assistant' && <div className="ai-xai-meta"><span>⚡ TF-IDF + Cosine</span>{item.budget ? <span>💰 Ngân sách ≤ {formatPrice(item.budget)}</span> : null}{typeof item.candidateCount === 'number' ? <span>📦 {item.candidateCount} mẫu đạt ràng buộc</span> : null}</div>}{item.role === 'assistant' && item.queryTokens?.length > 0 && <details className="ai-inspector"><summary>Xem phân tích vector & từ khóa ({item.queryTokens.length} tokens)</summary><div className="ai-token-list">{item.queryTokens.map((tok, i) => <code key={`${tok}-${i}`}>{tok}</code>)}</div></details>}{item.role === 'assistant' && item.providerWarning && <small className="ai-provider-warning" role="status">{item.providerWarning}</small>}{item.products?.length > 0 && <div className="chat-recommendations">{item.products.map((product) => <button key={product.id} onClick={() => { setAiOpen(false); setSelectedProduct(product); }}><img src={imageUrl(product.image, 120)} alt="" /><span><b>{product.name}</b><small>{formatPrice(product.price)}{product.score ? ` · Khớp ${Math.round(product.score * 100)}%` : ''}{product.matchedTerms?.length ? ` · [${product.matchedTerms.slice(0, 3).join(', ')}]` : ''}</small></span><ChevronRight size={14} /></button>)}</div>}</div>)}</div><form className="chat-input" onSubmit={(e) => { e.preventDefault(); askAdvisor(); }}><input value={message} disabled={aiBusy} onChange={(e) => setMessage(e.target.value)} placeholder="Ví dụ: Hoa hồng tặng mẹ dưới 500k..." /><button aria-label="Gửi tin nhắn" disabled={aiBusy}><Send size={17} /></button></form><small className="chat-disclaimer">Pipeline AI: Chuẩn hóa tiếng Việt → Vector TF-IDF → Cosine Similarity → Lọc cứng tồn kho & ngân sách.</small></div>}
+      {aiOpen && <div className="ai-chat modal-card" role="dialog" aria-modal="true" aria-label="Mộc Miên AI" onKeyDown={(e) => { if (e.key === 'Escape') setAiOpen(false); }}><div className="chat-heading"><span className="chat-avatar"><Sparkles size={19} /></span><div><b>Mộc Miên AI · Trợ lý chọn hoa</b><small><span /> {aiBusy ? 'Đang phân tích ngữ cảnh & kho hoa...' : 'Sẵn sàng · Hiểu ngữ cảnh & chính sách tiệm'}</small></div><button className="icon-button" onClick={() => setAiOpen(false)} aria-label="Đóng tư vấn"><X /></button></div><div className="chat-messages"><div className="chat-welcome"><div className="chat-flower">✿</div><h3>Chào bạn, mình là Miên.</h3><p>Trợ lý AI được huấn luyện riêng cho tiệm hoa Mộc Miên: hiểu dịp tặng, màu sắc, ngân sách đa lượt, tồn kho thực tế và chính sách ưu đãi của cửa hàng.</p><div className="suggestion-chips">{['Tặng mẹ, ngân sách 500k', 'Hoa lãng mạn tặng bạn gái', 'Có mã giảm giá nào không?', 'Phí ship & giao hàng thế nào?'].map((suggestion) => <button key={suggestion} disabled={aiBusy} onClick={() => askAdvisor(suggestion)}>{suggestion} <ArrowUpRight size={13} /></button>)}</div></div>{messages.map((item, index) => <div className={`chat-message ${item.role}`} key={`${item.role}-${index}`}><span style={{ whiteSpace: 'pre-line' }}>{item.text}</span>{item.role === 'assistant' && <div className="ai-xai-meta"><span>🎯 {item.intent || 'Tư vấn chọn hoa'}</span>{item.budget ? <span>💰 Ngân sách ≤ {formatPrice(item.budget)}</span> : null}{typeof item.candidateCount === 'number' && item.candidateCount > 0 ? <span>📦 {item.candidateCount} mẫu đạt ràng buộc</span> : null}</div>}{item.role === 'assistant' && item.queryTokens?.length > 0 && <details className="ai-inspector"><summary>Xem phân tích vector & từ khóa ({item.queryTokens.length} tokens)</summary><div className="ai-token-list">{item.queryTokens.map((tok, i) => <code key={`${tok}-${i}`}>{tok}</code>)}</div></details>}{item.role === 'assistant' && item.providerWarning && <small className="ai-provider-warning" role="status">{item.providerWarning}</small>}{item.products?.length > 0 && <div className="chat-recommendations">{item.products.map((product) => <div className="chat-rec-row" key={product.id} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><button style={{ flex: 1 }} onClick={() => { setAiOpen(false); setSelectedProduct(product); }}><img src={imageUrl(product.image, 120)} alt="" /><span><b>{product.name}</b><small>{formatPrice(product.price)}{product.matchReason ? ` · ${product.matchReason}` : ''}</small></span><ChevronRight size={14} /></button><button type="button" className="button-outline" style={{ padding: '6px 10px', fontSize: '12px', whiteSpace: 'nowrap' }} onClick={() => addToCart(product)}>+ Giỏ</button></div>)}</div>}</div>)}</div><form className="chat-input" onSubmit={(e) => { e.preventDefault(); askAdvisor(); }}><input value={message} disabled={aiBusy} onChange={(e) => setMessage(e.target.value)} placeholder="Hỏi Miên về hoa, ngân sách, dịp tặng hoặc mã giảm giá..." /><button aria-label="Gửi tin nhắn" disabled={aiBusy}><Send size={17} /></button></form><small className="chat-disclaimer">Pipeline AI: Phân loại ý định → Mở rộng ngữ nghĩa → Vector TF-IDF + Cosine → Lọc cứng tồn kho & ngân sách.</small></div>}
 
       {checkoutOpen && <div className="checkout-modal modal-card">
         <button className="modal-close" onClick={() => setCheckoutOpen(false)} aria-label="Đóng"><X /></button>
