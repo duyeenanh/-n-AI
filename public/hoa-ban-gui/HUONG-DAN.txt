@@ -1,0 +1,11 @@
+THU MUC ANH HOA MOI
+
+Hay chep cac anh hoa ban muon them vao thu muc nay.
+
+Dinh dang nen dung: .jpg, .jpeg, .png hoac .webp
+Dat ten anh ngan gon, khong dau, khong dau cach. Vi du:
+  nang-tho.jpg
+  bo-hoa-sinh-nhat.webp
+
+Sau khi chep anh, bao cho tro ly biet ten anh va ten san pham tuong ung
+de cap nhat hinh anh tren website.
