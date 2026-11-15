@@ -102,6 +102,7 @@ export default function AdminDashboard({ user, onClose, onHome = onClose, onLogo
   const [stockReceipts, setStockReceipts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [staff, setStaff] = useState([]);
   const [serverCategories, setServerCategories] = useState([]);
   const [aiHistory, setAiHistory] = useState([]);
@@ -140,6 +141,7 @@ export default function AdminDashboard({ user, onClose, onHome = onClose, onLogo
       }
       if (section === 'orders') setOrders(await apiFetch('/admin/orders'));
       if (section === 'payments') setPayments(await apiFetch('/admin/payments'));
+      if (section === 'customers') setCustomers(await apiFetch('/admin/customers'));
       if (section === 'staff') setStaff(await apiFetch('/admin/staff'));
       if (section === 'categories') setServerCategories(await apiFetch('/admin/categories'));
       if (section === 'ai') setAiHistory(await apiFetch('/admin/ai-history'));
