@@ -1,86 +1,138 @@
-# Mộc Miên — Flower Studio
+# 🌸 Mộc Miên — Flower Studio (AI-Powered E-Commerce)
 
-Đồ án website bán hoa xây dựng bằng React, Express, MySQL và AI tư vấn sản phẩm, định hướng môn **AI-based Programming Methods**. Trọng tâm AI là một pipeline truy xuất giải thích được (TF-IDF, cosine similarity, lọc ràng buộc và RAG), có thể chạy nội bộ; dịch vụ embedding/LLM là phần mở rộng tùy chọn.
+> **Đồ án học phần:** Phương Pháp Lập Trình Dựa Trên AI (*AI-based Programming Methods*)  
+> **Trường Đại học Phú Xuân** — Ngành Công nghệ Thông tin  
+> **Sinh viên thực hiện:** Phan Duyên Anh | **GVHD:** Trần Thanh Bình  
 
-## Công nghệ
+- 🌐 **Website triển khai thực tế (Vercel Production):** [https://moc-mien-flower-shop.vercel.app](https://moc-mien-flower-shop.vercel.app)  
+- 📦 **Mã nguồn GitHub:** [https://github.com/duyeenanh/-n-AI](https://github.com/duyeenanh/-n-AI)  
+- 📄 **Báo cáo đồ án (Markdown & Word):** [`docs/BAO-CAO-DO-AN.md`](./docs/BAO-CAO-DO-AN.md) | [`BAO-CAO-DO-AN-HOAN-CHINH.docx`](./BAO-CAO-DO-AN-HOAN-CHINH.docx)  
 
-- React + Vite: cửa hàng responsive, sản phẩm, tìm kiếm/lọc, yêu thích, giỏ hàng, so sánh và các màn hình tài khoản/quản trị.
-- Node.js + Express: REST API, kiểm tra dữ liệu bằng Zod, xác thực JWT và phân quyền khách hàng/nhân viên/quản trị.
-- MySQL 8: người dùng, danh mục, sản phẩm/kho, đơn hàng, dòng đơn, lịch sử trạng thái, thanh toán và hội thoại AI.
-- AI/RAG: xếp hạng sản phẩm bằng TF-IDF và cosine similarity; tùy chọn kết hợp embedding và mô hình chat để tạo câu trả lời dựa trên sản phẩm được truy xuất.
+---
 
-## Chạy trên Windows
+## 1. Giới thiệu đề tài
 
-Yêu cầu Node.js 20 trở lên và MySQL 8 đang chạy.
+**Mộc Miên Flower Studio** là hệ thống website thương mại điện tử bán hoa tươi nghệ thuật tích hợp **Trợ lý ảo Mộc Miên AI** tư vấn theo ngữ cảnh tiếng Việt. Hệ thống kết hợp kiến trúc **Full-stack Serverless (React + Express + Vercel + Supabase PostgreSQL)** với pipeline **Truy xuất thông tin giải thích được (Explainable AI / RAG)** giúp:
+- Gợi ý đúng mẫu hoa theo **dịp tặng, người nhận, màu sắc và ngân sách** (ví dụ: *“Tặng mẹ ngân sách 500k”*, *“Hoa tốt nghiệp giá sinh viên”*).
+- **Chống ảo giác (Zero Hallucination):** Chỉ gợi ý các sản phẩm đang còn hàng trong kho (`stock > 0`) và nằm trong ngân sách (`price <= budget`).
+- Hỗ trợ **2 chế độ vận hành linh hoạt:** Chạy trực tuyến với cơ sở dữ liệu đám mây **Supabase PostgreSQL** hoặc chạy **100% Local (0-API)** ngay trên trình duyệt.
 
-1. Mở PowerShell tại thư mục dự án và cài thư viện:
+---
 
+## 2. Công nghệ sử dụng (Tech Stack)
+
+| Tầng hệ thống | Công nghệ & Thư viện | Vai trò trong dự án |
+| :--- | :--- | :--- |
+| **Frontend** | React 18, Vite 6, Lucide React | Giao diện cửa hàng, giỏ hàng, thanh toán QR, khung chat AI, Admin & Staff Dashboard |
+| **Backend API** | Node.js, Express 5 (`server/index.js`, `api/index.js`) | RESTful API, kiểm tra dữ liệu đầu vào (`zod`), chạy được cả Local và Vercel Serverless |
+| **Cơ sở dữ liệu** | Supabase PostgreSQL (`pg`, `server/schema.sql`) | Lưu trữ người dùng, danh mục, 65 mẫu hoa, đơn hàng, phiếu nhập kho, vector RAG & lịch sử AI |
+| **AI & RAG Engine** | `src/utils/localAi.js`, `server/rag.js`, `server/ai-budget.js` | Phân loại ý định, Bản đồ ngữ nghĩa ngành hoa (Ontology), TF-IDF + Cosine Similarity, lọc ngân sách & tồn kho, kết nối tùy chọn Gemini API |
+| **Bảo mật & Tiện ích** | `jsonwebtoken` (JWT), `bcryptjs`, `write-excel-file` | Xác thực phân quyền 3 vai trò (`customer`, `staff`, `admin`) và xuất báo cáo Excel (`.xlsx`) |
+
+---
+
+## 3. Kiến trúc Trợ lý Mộc Miên AI
+
+Pipeline AI của hệ thống gồm 4 bước xử lý minh bạch:
+1. **Phân loại ý định (`classifyIntent`) & Tri thức cửa hàng:** Nhận diện câu hỏi về *mã giảm giá, phí giao hàng, thanh toán QR/COD, cách bảo quản hoa* hoặc *tư vấn chọn hoa*.
+2. **Ngữ cảnh đa lượt (`inferContextFromHistory`) & Mở rộng ngữ nghĩa (`DOMAIN_ONTOLOGY`):** Tự động kế thừa ngân sách từ câu hỏi trước khi khách hỏi nối tiếp (*“Có màu trắng không?”*) và mở rộng từ khóa theo dịp tặng (*tặng mẹ* → *cẩm chướng, mẫu đơn, lan, ly*).
+3. **Trích xuất ngân sách tiếng Việt (`extractLocalBudget` / `extractBudget`):** Hiểu các cách viết *“500k”*, *“1,5 triệu”*, *“250 ngàn đồng”* và phân biệt chính xác với số lượng cành (*“10 cành”*).
+4. **Xếp hạng TF-IDF + Cosine Similarity & Giải thích XAI:** Chấm điểm tương đồng, lọc cứng `stock > 0` và `price <= budget`, hiển thị rõ nhãn ý định (`🎯`), ngân sách (`💰`), số mẫu đạt chuẩn (`📦`) và nút **`+ Giỏ`** ngay trong khung chat.
+
+---
+
+## 4. Tính năng theo 3 phân hệ người dùng
+
+- **Khách hàng:**
+  - Duyệt và lọc **65 mẫu hoa** thuộc 4 danh mục (*Hoa hồng, Tulip nhập khẩu, Bó hoa tươi, Hoa chậu xinh*), yêu thích và đánh giá sao.
+  - Hỏi đáp với **Mộc Miên AI**, xem giải thích XAI và thêm nhanh sản phẩm vào giỏ hàng.
+  - Áp mã giảm giá (`MOCMIEN10`, `HOATUOI50K`, `FREESHIP`), miễn phí giao hàng cho đơn từ `600.000₫`.
+  - Đặt hàng nhanh không cần đăng nhập (Guest Checkout), chọn **COD** hoặc **Chuyển khoản QR MB Bank**, tải ảnh biên lai (tự động nén ảnh qua Canvas), xem/in hóa đơn, tra cứu và hủy đơn hàng.
+- **Nhân viên (Staff Portal):**
+  - Theo dõi tổng quan đơn hàng & tồn kho, cập nhật tiến trình giao hàng (*Chờ xác nhận → Đã xác nhận → Đang chuẩn bị → Đang giao → Đã giao*).
+  - Xem ảnh bill chuyển khoản, xác nhận đã thu tiền, cộng tồn kho và trả lời nhanh tin nhắn khách hàng.
+- **Quản trị viên (Admin Dashboard):**
+  - Thống kê doanh thu theo Ngày / Tháng / Năm và top sản phẩm bán chạy.
+  - Quản lý sản phẩm (thêm, sửa, ẩn, hiện lại, xóa), quản lý danh mục, lập phiếu nhập hàng từ nhà cung cấp, quản lý nhân viên, khách hàng, xem lịch sử tư vấn AI và **xuất báo cáo Excel (`.xlsx`)** tồn kho / đơn hàng.
+
+---
+
+## 5. Tài khoản Demo
+
+| Vai trò | Email đăng nhập | Mật khẩu |
+| :--- | :--- | :--- |
+| **Quản trị viên (Admin)** | `admin@mocmien.local` | `123456789` |
+| **Nhân viên 1 (Staff)** | `nhanvien1@mocmien.local` | `12346755` |
+| **Nhân viên 2 (Staff)** | `nhanvien2@mocmien.local` | `67891211` |
+| **Nhân viên 3 (Staff)** | `nhanvien3@mocmien.local` | `2345660` |
+| **Khách hàng mẫu** | `khach@mocmien.local` | `Password123!` |
+
+**Mã giảm giá dùng thử ở Giỏ hàng:**
+- `MOCMIEN10`: Giảm 10% (tối đa 80.000₫)
+- `HOATUOI50K`: Giảm 50.000₫ cho đơn từ 500.000₫
+- `FREESHIP`: Miễn phí vận chuyển 30.000₫
+
+---
+
+## 6. Hướng dẫn cài đặt và chạy dự án
+
+### Cách 1: Chạy nhanh chế độ Local (100% không cần cấu hình Database/API)
+```powershell
+npm install
+npm run dev
+```
+Mở trình duyệt tại `http://127.0.0.1:5173`.
+
+### Cách 2: Chạy Full-stack kết nối Supabase PostgreSQL
+1. Tạo file `.env` từ `.env.example` và điền chuỗi kết nối Supabase (`DATABASE_URL`, `DB_SSL=true`, `JWT_SECRET`):
    ```powershell
-   npm install
    Copy-Item .env.example .env
    ```
-
-2. Mở `.env`, nhập mật khẩu MySQL và một `JWT_SECRET` dài, ngẫu nhiên. Nếu dùng MySQL không phải `root`, sửa `DB_USER`/`DB_PASSWORD`. Đặt `ADMIN_PASSWORD` mới trước khi đưa dự án lên mạng. Cấu hình AI provider là tùy chọn; không gửi khóa bí mật lên chat hoặc đưa vào mã nguồn.
-3. Khởi tạo schema, 65 sản phẩm mẫu, danh mục (bao gồm hoa tốt nghiệp), và tài khoản quản trị:
-
+2. Khởi tạo bảng và nạp 65 mẫu hoa + tài khoản Admin/Nhân viên lên Supabase:
    ```powershell
    npm run db:seed
    ```
-   Sau khi cập nhật danh mục sản phẩm mẫu, dùng `npm run db:catalog` để thêm mẫu mới vào MySQL mà không thay đổi tài khoản quản trị/nhân viên. Tồn kho hiện tại của sản phẩm đã có sẽ được giữ nguyên. Khách có thể yêu cầu viết lời nhắn lên thiệp chúc mừng miễn phí khi đặt hoa.
-
-   Lệnh này tạo cơ sở dữ liệu `moc_mien` nếu người dùng MySQL có quyền tạo database. Khi nâng cấp từ phiên bản cũ có đơn hàng, chạy lại `npm run db:seed` để thêm các cột lưu bill chuyển khoản và mã truy cập đơn khách vãng lai.
-4. Chạy máy chủ API và giao diện cùng lúc:
-
+3. Chạy đồng thời Backend Express (`:3001`) và Frontend Vite (`:5173`):
    ```powershell
    npm run dev:full
    ```
 
-   Mở địa chỉ Vite, thường là `http://localhost:5173`. Kiểm tra API tại `http://localhost:3001/api/health`.
+### Kiểm thử & Đóng gói Production
+```powershell
+npm test          # Chạy 14/14 Unit Test kiểm tra trích xuất ngân sách & xếp hạng AI
+npm run build     # Đóng gói bản Production vào thư mục dist/
+```
 
-Tài khoản quản trị mặc định lấy từ `.env.example`: `admin@mocmien.local` / `ChangeMe123!`. Đây là mật khẩu mặc định chỉ dành cho máy cá nhân; hãy đổi trước khi triển khai. Khách hàng đăng ký trực tiếp ở mục Tài khoản.
+---
 
-## Tài khoản nhân viên
+## 7. Cấu trúc thư mục chính
 
-Đăng nhập bằng khách hàng rồi chọn **Đăng nhập nhân viên** ở màn hình tài khoản. Quản trị viên vào mục **Tài khoản nhân viên** trong trang quản trị để tạo tài khoản (mật khẩu tối thiểu 12 ký tự) hoặc thu hồi tài khoản. Nhân viên có trang làm việc riêng để kiểm kê số lượng tồn kho, xem đơn và người nhận, theo dõi lịch sử giao hàng, rồi chuyển trạng thái lần lượt: **Chờ xác nhận → Đã xác nhận → Đang chuẩn bị → Đang giao → Đã giao**. Mỗi lần đổi trạng thái được lưu vào lịch sử đơn để khách hàng xem trong tài khoản.
-
-Việc thêm vai trò nhân viên cần cập nhật cấu trúc cơ sở dữ liệu. Chạy `npm run db:seed` một lần sau khi cập nhật phiên bản dự án. Có thể tạo tài khoản nhân viên trong trang quản trị; hoặc khai báo từng bộ `STAFF_1_NAME`, `STAFF_1_EMAIL`, `STAFF_1_PASSWORD` (tương tự cho nhân viên 2 và 3) trong `.env` rồi chạy seed. Mật khẩu ngắn hơn 12 ký tự được cảnh báo là không an toàn.
-
-Tạo bản frontend production bằng `npm run build`; chạy riêng API bằng `npm run server:dev` hoặc `npm run server:start`.
-
-## Tư vấn AI và RAG
-
-Đồ án minh họa pipeline AI có thể chạy ngay cả khi chưa cấu hình dịch vụ AI bên ngoài:
-
-1. **Biểu diễn văn bản:** chuẩn hóa tiếng Việt và tách token trong yêu cầu khách hàng, tên/mô tả/loài hoa/màu sắc/dịp tặng của sản phẩm.
-2. **TF-IDF:** tính trọng số từ dựa trên tần suất trong tài liệu và độ hiếm trong toàn bộ danh mục.
-3. **Cosine similarity:** xếp hạng mức tương đồng giữa câu hỏi và tài liệu sản phẩm. Ngân sách và tồn kho là điều kiện lọc cứng; hệ thống không gợi ý sản phẩm hết hàng hoặc vượt ngân sách đã nhận diện.
-4. **RAG:** lấy tối đa 5 sản phẩm phù hợp làm ngữ cảnh. Khi chưa có API, câu trả lời được tạo theo mẫu từ kết quả truy xuất và được ghi rõ trên giao diện.
-5. **LLM tùy chọn:** có thể kết nối Gemini Developer API để diễn đạt câu trả lời dựa trên các sản phẩm truy xuất. Gói miễn phí có giới hạn và điều khoản riêng; xem thông tin hiện hành tại [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing). Khi chưa có khóa, ứng dụng dùng TF-IDF/cosine nội bộ.
-
-Để bật Gemini, tạo API key trong [Google AI Studio](https://aistudio.google.com/apikey), đặt khóa vào `AI_API_KEY` trong `.env`, giữ `AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai`, `AI_CHAT_MODEL=gemini-3.1-flash-lite` và `AI_EMBEDDINGS_ENABLED=false`, rồi khởi động lại ứng dụng. API key không được đưa vào giao diện hoặc commit vào kho mã. Kiểm tra cấu hình bằng `npm run ai:provider-check`; với cấu hình mặc định chỉ chat, lệnh này gửi một yêu cầu chat thử. Gói miễn phí có giới hạn, có thể thay đổi, và dữ liệu có thể được sử dụng theo điều khoản của Google.
-
-Tìm kiếm sản phẩm vẫn dùng TF-IDF/cosine cục bộ; không cần embeddings hay reindex sau khi cấu hình Gemini. Chatbot dùng Gemini để diễn đạt câu trả lời dựa trên sản phẩm được truy xuất. Giao diện không hiển thị nhãn phương pháp AI.
-
-Quản trị sản phẩm sẽ đồng bộ lại tài liệu RAG sau thao tác thêm/sửa/xóa. Lịch sử tư vấn được lưu cho tài khoản đăng nhập; lời nhắn của khách chưa đăng nhập không được lưu.
-
-### Đánh giá và tài liệu trình bày AI
-
-- Xem sơ đồ kiến trúc, thuật toán, ranh giới dịch vụ và cách kiểm tra chế độ chạy tại [docs/AI-ARCHITECTURE.md](./docs/AI-ARCHITECTURE.md).
-- Tập truy vấn tiếng Việt và nhãn sản phẩm phù hợp được lưu tại [evaluation/flower-relevance.json](./evaluation/flower-relevance.json). Nhãn hiện được tuyển chọn thủ công, không phải phản hồi của người dùng.
-- Chạy `npm test` để kiểm tra phân tích ngân sách và tránh nhầm số lượng cành với số tiền.
-- Chạy `npm run ai:evaluate` khi MySQL đang chạy và đã nạp danh mục để đo Precision@5, Recall@5, MRR và lỗi ràng buộc kho/ngân sách. Bộ đo ép chạy baseline TF-IDF để kết quả không phụ thuộc API hay chi phí LLM.
-- Nếu đã tự cấu hình Gemini trong `.env`, chạy `npm run ai:provider-check` để kiểm tra kết nối chat. Với cấu hình embedding được bật, lệnh cũng sẽ kiểm tra embedding. Mỗi request có thể sử dụng hạn mức provider; API key không được in ra terminal.
-- Báo cáo phương pháp, công thức chỉ số, kết quả đo và giới hạn nằm trong [docs/AI-EVALUATION.md](./docs/AI-EVALUATION.md).
-
-## Luồng đã triển khai
-
-- Tài khoản đăng ký/đăng nhập, hồ sơ, đổi mật khẩu, yêu thích và lịch sử mua hàng.
-- Khách có thể đánh giá từng sản phẩm trong đơn sau khi đơn được đánh dấu **Đã giao**; hỗ trợ chọn nửa sao đến 5 sao, viết nhận xét và cập nhật đánh giá.
-- Quản trị sản phẩm, danh mục, tài khoản nhân viên (tạo/sửa/đặt lại mật khẩu/thu hồi), kiểm kê và phiếu nhập hàng có trạng thái **Đang nhập về / Đã nhập kho**. Phiếu chỉ cộng tồn sau khi quản trị viên xác nhận hàng đã về; lịch sử ghi nhà cung cấp, số lượng và giá vốn. Tổng đơn hàng trên trang admin mở danh sách đơn mới nhất trước; tổng số lượng hàng còn kho được hiển thị trong tổng quan.
-- Tồn kho được trừ ngay trong transaction khi đơn hàng được tạo thành công. Số liệu kho phía admin/nhân viên tự làm mới định kỳ; sản phẩm hết hàng được đánh dấu và không thể mua. Nhân viên có mục riêng xem hàng hết cùng gợi ý sản phẩm còn tồn để tư vấn thay thế.
-- Khu vực nhân viên riêng để kiểm kê tồn kho, xuất báo cáo kiểm kê Excel hằng ngày, theo dõi/cập nhật tiến trình giao hàng và nhắn tin trực tiếp với khách; quản trị viên cũng có thể xuất báo cáo Excel tại mục Quản lý kho. Báo cáo ghi ngày giờ xuất, người xuất, tồn kho và thời điểm cập nhật gần nhất.
-- Khách có thể đặt hàng trực tiếp mà không cần đăng nhập hoặc tạo tài khoản; thông tin nhận hoa được nhập khi checkout. Giá và tồn kho được xác thực từ MySQL trong transaction. Khách đăng nhập vẫn có thể dùng các tính năng tài khoản và xem lịch sử đơn đã gắn với tài khoản.
-- COD và chuyển khoản được theo dõi trong trang quản trị/nhân viên. QR trong `public/qr-chuyen-khoan.png` trỏ tới tài khoản MB Bank cấu hình trong `.env`; khi tạo đơn chuyển khoản, khách quét QR, nhập tổng tiền và mã đơn làm nội dung, rồi bấm **Tôi đã chuyển khoản** hoặc tải ảnh biên lai JPEG/PNG/WebP (tối đa 4 MB). Biên lai được lưu theo đơn; khách đã đăng nhập, nhân viên hoặc admin có quyền phù hợp xem, còn đơn khách vãng lai dùng mã truy cập ngẫu nhiên riêng. Nhân viên/Admin đối chiếu giao dịch thực tế trong tài khoản ngân hàng và chỉ sau đó mới bấm **Xác nhận đã nhận tiền**. Trạng thái xác nhận và người xác nhận được lưu trong đơn hàng. Ứng dụng chưa kết nối webhook ngân hàng nên không tự phát hiện tiền vào; thao tác báo chuyển khoản hoặc tải biên lai không tự xác nhận đã nhận tiền.
-- Khách hàng, admin và nhân viên có thể xem/in hóa đơn từ chi tiết đơn hàng. Hóa đơn gồm thông tin người nhận, sản phẩm, số lượng, phí giao hàng và trạng thái thanh toán.
-
-Ảnh sản phẩm lấy từ Unsplash; Google Fonts được tải từ Google Fonts. Chưa bao gồm triển khai hosting/cloud, email/SMS, cổng thanh toán, hoặc hệ thống kiểm thử thanh toán với ngân hàng.
+```text
+├── api/
+│   └── index.js                # Entrypoint Serverless Function trên Vercel
+├── docs/
+│   ├── AI-ARCHITECTURE.md      # Tài liệu kiến trúc AI & RAG
+│   ├── AI-EVALUATION.md        # Báo cáo đánh giá độ chính xác AI
+│   └── BAO-CAO-DO-AN.md        # Nội dung báo cáo đồ án 5 chương
+├── public/
+│   ├── flowers/                # Bộ ảnh 65 mẫu hoa tươi
+│   └── qr-chuyen-khoan.png     # Mã QR thanh toán ngân hàng
+├── server/
+│   ├── ai-budget.js            # Bộ trích xuất ngân sách tiếng Việt (Backend)
+│   ├── auth.js                 # Xác thực JWT & middleware phân quyền
+│   ├── db.js                   # Kết nối PostgreSQL Pool (Supabase)
+│   ├── index.js                # Express REST API Server
+│   ├── rag.js                  # Pipeline TF-IDF, Cosine Similarity & RAG
+│   ├── schema.sql              # Cấu trúc bảng PostgreSQL
+│   └── seed.js                 # Script tạo bảng & nạp dữ liệu mẫu
+├── src/
+│   ├── components/             # AdminDashboard, StaffDashboard, AccountPanel, PaymentProof, OrderInvoice
+│   ├── data/products.js        # Dữ liệu chuẩn 65 sản phẩm & 4 danh mục
+│   ├── utils/localAi.js        # Engine Mộc Miên AI (Intent, Ontology, TF-IDF, XAI)
+│   ├── utils/localApi.js       # Bộ giả lập API & LocalStorage khi chạy 0-API
+│   ├── App.jsx                 # Giao diện cửa hàng chính & hộp thoại Mộc Miên AI
+│   └── api.js                  # Client gọi API kèm cơ chế tự động fallback Local
+├── tests/
+│   └── ai-budget.test.js       # 14 bài kiểm thử tự động cho AI
+└── vercel.json                 # Cấu hình định tuyến Frontend & Serverless API trên Vercel
+```
