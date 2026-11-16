@@ -41,7 +41,16 @@ Pipeline AI của hệ thống gồm 4 bước xử lý minh bạch:
 
 ---
 
-## 4. Tính năng theo 3 phân hệ người dùng
+## 4. Nguồn dữ liệu & Cơ chế lưu trữ
+
+- **Dữ liệu sản phẩm ban đầu (`src/data/products.js`):** Gồm **65 mẫu hoa** và danh mục được biên tập chuẩn hóa tiếng Việt (tên hoa, giá bán, loài hoa, số lượng cành, màu sắc, dịp tặng). Hình ảnh hoa được tuyển chọn từ nguồn mở hợp pháp **Wikimedia Commons** (chi tiết giấy phép tại [`public/flowers/IMAGE-CREDITS.md`](./public/flowers/IMAGE-CREDITS.md)) và **Unsplash**, nén sang PNG lưu nội bộ trong `public/flowers/`.
+- **Khi chạy Online trên Vercel (`moc-mien-flower-shop.vercel.app`):** Toàn bộ sản phẩm, tồn kho, đơn hàng, ảnh biên lai, tin nhắn và lịch sử AI được đọc/ghi trực tiếp trên **Supabase PostgreSQL** (`server/schema.sql`) thông qua API `/api/*`. Khi đặt hàng, hệ thống trừ tồn kho trong PostgreSQL Transaction; khi truy vấn AI, hệ thống đọc trực tiếp từ bảng `rag_documents` kết hợp `products`.
+- **Khi chạy chế độ Local (0-API):** Hệ thống khởi tạo dữ liệu từ `src/data/products.js` và lưu mọi thay đổi đơn hàng, tồn kho, lịch sử AI vào `localStorage` của trình duyệt thông qua `src/utils/localApi.js`.
+- **Kiểm thử tự động:** Chạy `npm test` (`tests/ai-budget.test.js`) đạt **14/14 test pass** cho bài toán trích xuất ngân sách tiếng Việt và lọc ràng buộc tồn kho/giá.
+
+---
+
+## 5. Tính năng theo 3 phân hệ người dùng
 
 - **Khách hàng:**
   - Duyệt và lọc **65 mẫu hoa** thuộc 4 danh mục (*Hoa hồng, Tulip nhập khẩu, Bó hoa tươi, Hoa chậu xinh*), yêu thích và đánh giá sao.
@@ -57,7 +66,7 @@ Pipeline AI của hệ thống gồm 4 bước xử lý minh bạch:
 
 ---
 
-## 5. Tài khoản Demo
+## 6. Tài khoản Demo
 
 | Vai trò | Email đăng nhập | Mật khẩu |
 | :--- | :--- | :--- |
@@ -74,7 +83,7 @@ Pipeline AI của hệ thống gồm 4 bước xử lý minh bạch:
 
 ---
 
-## 6. Hướng dẫn cài đặt và chạy dự án
+## 7. Hướng dẫn cài đặt và chạy dự án
 
 ### Cách 1: Chạy nhanh chế độ Local (100% không cần cấu hình Database/API)
 ```powershell
@@ -105,7 +114,7 @@ npm run build     # Đóng gói bản Production vào thư mục dist/
 
 ---
 
-## 7. Cấu trúc thư mục chính
+## 8. Cấu trúc thư mục chính
 
 ```text
 ├── api/
